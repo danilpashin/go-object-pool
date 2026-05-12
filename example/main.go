@@ -7,7 +7,13 @@ import (
 )
 
 func main() {
-	pool := pool.NewPool[int](3)
+	conf := pool.NewConfig()
+
+	pool, err := pool.NewPool[int](3, conf)
+	if err != nil {
+		return
+	}
+
 	pool.Put(2)
 	pool.Put(4)
 	pool.Put(1)
