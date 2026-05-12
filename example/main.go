@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	pool "github.com/danilpashin/go-object-pool"
 )
@@ -17,5 +19,8 @@ func main() {
 	pool.Put(2)
 	pool.Put(4)
 	pool.Put(1)
-	fmt.Println(pool.Get())
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	fmt.Println(pool.Get(ctx))
 }
