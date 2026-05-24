@@ -10,15 +10,25 @@ type Pool[T any] struct {
 	conf    *PoolConfig
 }
 
-func NewPool[T any](capacity int, conf *PoolConfig) (*Pool[T], error) {
+type Resettable interface {
+	Reset()
+}
+
+func NewPool[T any](initialSize int, capacity int, conf *PoolConfig, factory func() T) (*Pool[T], error) {
 	if capacity <= 0 {
 		return nil, errors.New("invalid capacity")
 	}
 
-	return &Pool[T]{
+	pool := &Pool[T]{
 		objects: make(chan T, capacity),
 		conf:    conf,
-	}, nil
+	}
+
+	for range initialSize {
+		pool.objects <- factory()
+	}
+
+	return pool, nil
 }
 
 func (p *Pool[T]) Get(ctx context.Context) T {
@@ -38,5 +48,12 @@ func (p *Pool[T]) Get(ctx context.Context) T {
 }
 
 func (p *Pool[T]) Put(object T) {
+	if resettable, ok := any(object).(Resettable); ok {
+		resettable.Reset()
+	} else {
+		var zero T
+		object = zero
+	}
+
 	p.objects <- object
 }
