@@ -21,7 +21,7 @@ type Resettable interface {
 	Reset()
 }
 
-func NewPool[T any](initialSize int, capacity int, conf *PoolConfig[T], factory func() T) (*Pool[T], error) {
+func NewPool[T any](initialSize int, capacity int64, conf *PoolConfig[T], factory func() T) (*Pool[T], error) {
 	if capacity <= 0 {
 		return nil, errors.New("invalid capacity")
 	}
@@ -58,14 +58,14 @@ func (p *Pool[T]) Get(ctx context.Context) T {
 
 	if newCreated > atomic.LoadInt64(&p.capacity) {
 		atomic.AddInt64(&p.created, -1)
-	select {
-	case obj := <-p.objects:
-		return obj
-	case <-ctx.Done():
+		select {
+		case obj := <-p.objects:
+			return obj
+		case <-ctx.Done():
 			atomic.AddInt64(&p.missed, 1)
-		var zero T
-		return zero
-	}
+			var zero T
+			return zero
+		}
 	}
 
 	return p.factory()
@@ -82,4 +82,12 @@ func (p *Pool[T]) Put(object T) {
 	}
 
 	p.objects <- object
+}
+
+func (p *Pool[T]) Stats() {
+	fmt.Printf("Current pool[%v] stats: \n", reflect.TypeOf(p))
+	fmt.Printf("Capacity: %d\n", p.capacity)
+	fmt.Printf("Created: %d\n", p.created)
+	fmt.Printf("Active: %d\n", int(p.created)-len(p.objects))
+	fmt.Printf("Missed: %d\n", p.missed)
 }
