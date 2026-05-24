@@ -6,8 +6,11 @@ import (
 )
 
 type Pool[T any] struct {
-	objects chan T
-	conf    *PoolConfig[T]
+	objects  chan T
+	capacity int
+	created  int
+	factory  func() T
+	conf     *PoolConfig[T]
 }
 
 type Resettable interface {
@@ -20,12 +23,15 @@ func NewPool[T any](initialSize int, capacity int, conf *PoolConfig[T], factory 
 	}
 
 	pool := &Pool[T]{
-		objects: make(chan T, capacity),
-		conf:    conf,
+		objects:  make(chan T, capacity),
+		capacity: capacity,
+		factory:  factory,
+		conf:     conf,
 	}
 
 	for range initialSize {
 		pool.objects <- factory()
+		pool.created++
 	}
 
 	return pool, nil
@@ -36,6 +42,12 @@ func (p *Pool[T]) Get(ctx context.Context) T {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(context.Background(), p.conf.MaxWait)
 		defer cancel()
+	}
+
+	if p.created < p.capacity {
+		obj := p.factory()
+		p.created++
+		return obj
 	}
 
 	select {

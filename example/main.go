@@ -21,11 +21,11 @@ func (h *HeavyObject) Reset() {
 
 func main() {
 	conf := pool.NewConfig[*HeavyObject]()
-	conf.MaxTotal = 2
+	conf.MaxTotal = 3
 
 	// Heavy objects (structures with multiple fields and lots of data).
-	// Creating pool with parameters: initialSize = 2, maxTotal = 2.
-	p, err := pool.NewPool[*HeavyObject](2, 2, conf, func() *HeavyObject {
+	// Creating pool with parameters: initialSize = 2, capacity = 3.
+	p, err := pool.NewPool[*HeavyObject](2, 3, conf, func() *HeavyObject {
 		return &HeavyObject{
 			Bytes1: make([]byte, 0, 8192),
 			Bytes2: make([]byte, 0, 8192),
@@ -52,24 +52,33 @@ func main() {
 	obj2 := p.Get(ctx)
 	obj2.Bytes1 = append(obj2.Bytes1, []byte("second object data")...)
 
-	// 3. Trying to get third object. Pool is empty (maxSize = 2).
-	// Should be blocked call.
-	fmt.Println("Trying to get third object...")
+	// 3. Trying to get third object. Pool is empty (created = 2, capacity = 3).
+	// Object dynamically created in the pool.
 	obj3 := p.Get(ctx)
-	if obj3 == nil {
-		fmt.Println("Pool is blocked: limit exceeded or timeout expired. It's okay!")
+	obj3.Bytes2 = append(obj3.Bytes2, []byte("third object data")...)
+
+	// 4. Trying to get fourth object. Pool is empty and fully used (created = 3, capacity = 3).
+	// Should be blocked call.
+	fmt.Println("Trying to get fourth object...")
+	obj4 := p.Get(ctx)
+	if obj4 == nil {
+		fmt.Printf("Pool is blocked: limit exceeded. It's okay!\n")
 	}
 
 	// Imitating work...
 	fmt.Printf("Working with obj1: %s\n", string(obj1.Bytes1))
+	fmt.Printf("Working with obj2: %s\n", string(obj2.Bytes1))
+	fmt.Printf("Working with obj3: %s\n", string(obj3.Bytes2))
 
-	// 4. Returning objects to pool. Reset() works automatically.
+	// 5. Returning objects to pool. Reset() works automatically.
 	p.Put(obj1)
 	p.Put(obj2)
+	p.Put(obj3)
 
 	// Nil to pointers to not use them later.
 	obj1 = nil
 	obj2 = nil
+	obj3 = nil
 
 	conf2 := pool.NewConfig[[]int]()
 	conf2.ResetFunc = func(slice []int) {
@@ -111,4 +120,7 @@ func main() {
 
 	// ResetFunc clears the object state to prevent memory leaks in the pool.
 	pSlice.Put(slice)
+
+	// nil to pointer to not use slice later.
+	slice = nil
 }
