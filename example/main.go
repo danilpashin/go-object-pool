@@ -20,7 +20,7 @@ func (h *HeavyObject) Reset() {
 }
 
 func main() {
-	conf := pool.NewConfig()
+	conf := pool.NewConfig[*HeavyObject]()
 	conf.MaxTotal = 2
 
 	// Heavy objects (structures with multiple fields and lots of data).
@@ -71,9 +71,13 @@ func main() {
 	obj1 = nil
 	obj2 = nil
 
+	conf2 := pool.NewConfig[[]int]()
+	conf2.ResetFunc = func(slice []int) {
+		slice = slice[:0]
+	}
 	// Regular objects (slices, arrays, strings, int, float types etc.).
 	// Creating pool with parameters: initalSize = 2, capacity = 2.
-	pSlice, err := pool.NewPool[[]int](2, 2, conf, func() []int {
+	pSlice, err := pool.NewPool[[]int](2, 2, conf2, func() []int {
 		return make([]int, 0, 1)
 	})
 
@@ -100,10 +104,11 @@ func main() {
 
 	// Trying to get slice after context timeout.
 	// Pool returns nil because of timeout.
-	sliceNil := pSlice.Get(ctx)
-	if sliceNil == nil {
+	slice = pSlice.Get(ctx)
+	if slice == nil {
 		fmt.Println("Pool is blocked: timeout expired. It's okay!")
 	}
-	// Do not return nil object to the pool because
-	// pool should not contain nil values.
+
+	// ResetFunc clears the object state to prevent memory leaks in the pool.
+	pSlice.Put(slice)
 }

@@ -7,14 +7,14 @@ import (
 
 type Pool[T any] struct {
 	objects chan T
-	conf    *PoolConfig
+	conf    *PoolConfig[T]
 }
 
 type Resettable interface {
 	Reset()
 }
 
-func NewPool[T any](initialSize int, capacity int, conf *PoolConfig, factory func() T) (*Pool[T], error) {
+func NewPool[T any](initialSize int, capacity int, conf *PoolConfig[T], factory func() T) (*Pool[T], error) {
 	if capacity <= 0 {
 		return nil, errors.New("invalid capacity")
 	}
@@ -48,7 +48,9 @@ func (p *Pool[T]) Get(ctx context.Context) T {
 }
 
 func (p *Pool[T]) Put(object T) {
-	if resettable, ok := any(object).(Resettable); ok {
+	if p.conf.ResetFunc != nil {
+		p.conf.ResetFunc(object)
+	} else if resettable, ok := any(object).(Resettable); ok {
 		resettable.Reset()
 	} else {
 		var zero T

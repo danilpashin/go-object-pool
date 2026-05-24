@@ -2,38 +2,39 @@ package pool
 
 import "time"
 
-type PoolConfig struct {
+type PoolConfig[T any] struct {
 	MaxTotal           int
 	MaxIdle            int
 	MinIdle            int
 	BlockWhenExhausted bool
 	MaxWait            time.Duration
+	ResetFunc          func(T)
 }
 
-type Option func(*PoolConfig)
+type Option[T any] func(*PoolConfig[T])
 
-func WithMaxTotal(n int) Option {
-	return func(c *PoolConfig) { c.MaxTotal = n }
+func WithMaxTotal[T any](n int) Option[T] {
+	return func(c *PoolConfig[T]) { c.MaxTotal = n }
 }
 
-func WithMaxIdle(n int) Option {
-	return func(c *PoolConfig) { c.MaxIdle = n }
+func WithMaxIdle[T any](n int) Option[T] {
+	return func(c *PoolConfig[T]) { c.MaxIdle = n }
 }
 
-func WithMinIdle(n int) Option {
-	return func(c *PoolConfig) { c.MinIdle = n }
+func WithMinIdle[T any](n int) Option[T] {
+	return func(c *PoolConfig[T]) { c.MinIdle = n }
 }
 
-func WithBlockWhenExhausted(b bool) Option {
-	return func(c *PoolConfig) { c.BlockWhenExhausted = b }
+func WithBlockWhenExhausted[T any](b bool) Option[T] {
+	return func(c *PoolConfig[T]) { c.BlockWhenExhausted = b }
 }
 
-func WithMaxWait(d time.Duration) Option {
-	return func(c *PoolConfig) { c.MaxWait = d }
+func WithMaxWait[T any](d time.Duration) Option[T] {
+	return func(c *PoolConfig[T]) { c.MaxWait = d }
 }
 
-func NewConfig(opts ...Option) *PoolConfig {
-	conf := &PoolConfig{
+func NewConfig[T any](opts ...Option[T]) *PoolConfig[T] {
+	conf := &PoolConfig[T]{
 		MaxTotal:           100,
 		MaxIdle:            30,
 		MinIdle:            10,
