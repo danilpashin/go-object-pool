@@ -3,12 +3,16 @@ package pool
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
+	"sync/atomic"
 )
 
 type Pool[T any] struct {
 	objects  chan T
-	capacity int
-	created  int
+	capacity int64
+	created  int64
+	missed   int64
 	factory  func() T
 	conf     *PoolConfig[T]
 }
@@ -31,7 +35,7 @@ func NewPool[T any](initialSize int, capacity int, conf *PoolConfig[T], factory 
 
 	for range initialSize {
 		pool.objects <- factory()
-		pool.created++
+		atomic.AddInt64(&pool.created, 1)
 	}
 
 	return pool, nil
@@ -44,19 +48,27 @@ func (p *Pool[T]) Get(ctx context.Context) T {
 		defer cancel()
 	}
 
-	if p.created < p.capacity {
-		obj := p.factory()
-		p.created++
+	select {
+	case obj := <-p.objects:
 		return obj
+	default:
 	}
 
+	newCreated := atomic.AddInt64(&p.created, 1)
+
+	if newCreated > atomic.LoadInt64(&p.capacity) {
+		atomic.AddInt64(&p.created, -1)
 	select {
 	case obj := <-p.objects:
 		return obj
 	case <-ctx.Done():
+			atomic.AddInt64(&p.missed, 1)
 		var zero T
 		return zero
 	}
+	}
+
+	return p.factory()
 }
 
 func (p *Pool[T]) Put(object T) {
