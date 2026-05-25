@@ -3,8 +3,6 @@ package pool
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
 	"sync/atomic"
 )
 
@@ -15,6 +13,13 @@ type Pool[T any] struct {
 	missed   int64
 	factory  func() T
 	conf     *PoolConfig[T]
+}
+
+type Stats struct {
+	Capacity int64
+	Created  int64
+	Missed   int64
+	Active   int64
 }
 
 type Resettable interface {
@@ -84,10 +89,11 @@ func (p *Pool[T]) Put(object T) {
 	p.objects <- object
 }
 
-func (p *Pool[T]) Stats() {
-	fmt.Printf("Current pool[%v] stats: \n", reflect.TypeOf(p))
-	fmt.Printf("Capacity: %d\n", p.capacity)
-	fmt.Printf("Created: %d\n", p.created)
-	fmt.Printf("Active: %d\n", int(p.created)-len(p.objects))
-	fmt.Printf("Missed: %d\n", p.missed)
+func (p *Pool[T]) Stats() *Stats {
+	return &Stats{
+		Capacity: atomic.LoadInt64(&p.capacity),
+		Created:  atomic.LoadInt64(&p.created),
+		Missed:   atomic.LoadInt64(&p.missed),
+		Active:   atomic.LoadInt64(&p.created) - int64(len(p.objects)),
+	}
 }
