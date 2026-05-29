@@ -94,7 +94,6 @@ func (p *Pool[T]) Put(object *PoolObject[T]) {
 	} else {
 		var zero *PoolObject[T]
 		object = zero
-		fmt.Println("nil object")
 	}
 
 	p.objects <- object
