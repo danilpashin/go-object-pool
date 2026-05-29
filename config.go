@@ -7,6 +7,7 @@ type PoolConfig[T any] struct {
 	MaxWait      time.Duration
 	ResetFunc    func(T)
 	ScanInterval time.Duration
+	MaxLifetime  time.Duration
 	DeleteSize   int
 	stop         chan struct{}
 }
@@ -29,6 +30,10 @@ func WithScanInterval[T any](d time.Duration) Option[T] {
 	return func(c *PoolConfig[T]) { c.ScanInterval = d }
 }
 
+func WithMaxLifetime[T any](d time.Duration) Option[T] {
+	return func(c *PoolConfig[T]) { c.MaxLifetime = d }
+}
+
 func WithDeleteSize[T any](n int) Option[T] {
 	return func(c *PoolConfig[T]) { c.DeleteSize = n }
 }
@@ -38,6 +43,7 @@ func NewConfig[T any](opts ...Option[T]) *PoolConfig[T] {
 		MinIdle:      10,
 		MaxWait:      time.Second * 3,
 		ScanInterval: time.Second,
+		MaxLifetime:  time.Second,
 		DeleteSize:   5,
 		stop:         make(chan struct{}),
 	}

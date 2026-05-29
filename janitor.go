@@ -12,6 +12,7 @@ func (c *poolCore[T]) cleaner() {
 
 	minIdle := c.conf.MinIdle
 	deleteSize := c.conf.DeleteSize
+	maxLifetime := c.conf.MaxLifetime
 
 	for {
 		select {
@@ -22,7 +23,7 @@ func (c *poolCore[T]) cleaner() {
 					select {
 					case obj := <-c.objects:
 						if obj != nil {
-							if time.Since(obj.lastUsed) > time.Millisecond*100 {
+							if time.Since(obj.lastUsed) > maxLifetime {
 								atomic.AddInt64(&c.created, -1)
 								obj = nil
 							} else {

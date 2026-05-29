@@ -24,11 +24,13 @@ func main() {
 	// Config contains parameters for background cleaner goroutine
 	//
 	// ScanInterval defines how often the janitor checks for idle objects to remove.
+	// MaxLifetime defines how long a pool object can live before being removed.
 	// DeleteSize specifies how many idle objects are removed per scan when
 	// the pool size exceeds MinIdle.
 	conf := pool.NewConfig[*HeavyObject](
 		pool.WithMinIdle[*HeavyObject](2),
 		pool.WithScanInterval[*HeavyObject](time.Second*5),
+		pool.WithMaxLifetime[*HeavyObject](time.Millisecond*50),
 		pool.WithDeleteSize[*HeavyObject](1),
 	)
 
