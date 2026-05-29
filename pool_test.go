@@ -19,181 +19,181 @@ func (h *TestHeavyObject) Reset() {
 }
 
 func TestPool(t *testing.T) {
-	// t.Run("synchronous_requests", func(t *testing.T) {
-	// 	const (
-	// 		requests = 20
-	// 		poolSize = 10
-	// 		poolCap  = 10
-	// 		sliceCap = 1024
-	// 	)
+	t.Run("synchronous_requests", func(t *testing.T) {
+		const (
+			requests = 20
+			poolSize = 10
+			poolCap  = 10
+			sliceCap = 1024
+		)
 
-	// 	cfg := NewConfig[*TestHeavyObject]()
-	// 	cfg.ResetFunc = func(p PoolObject[*TestHeavyObject]) {
-	// 		p.Value.Bytes1 = p.Value.Bytes1[:0]
-	// 		p.Value.Bytes2 = p.Value.Bytes2[:0]
-	// 	}
-	// 	factory := func() *TestHeavyObject {
-	// 		return &TestHeavyObject{
-	// 			Bytes1: make([]byte, 0, sliceCap),
-	// 			Bytes2: make([]byte, 0, sliceCap),
-	// 		}
-	// 	}
+		cfg := NewConfig[*TestHeavyObject]()
+		cfg.ResetFunc = func(p *TestHeavyObject) {
+			p.Bytes1 = p.Bytes1[:0]
+			p.Bytes2 = p.Bytes2[:0]
+		}
+		factory := func() *TestHeavyObject {
+			return &TestHeavyObject{
+				Bytes1: make([]byte, 0, sliceCap),
+				Bytes2: make([]byte, 0, sliceCap),
+			}
+		}
 
-	// 	p, err := NewPool[*TestHeavyObject](poolSize, int64(poolCap), cfg, factory)
-	// 	if err != nil {
-	// 		t.Fatal("failed to create pool: ", err)
-	// 	}
+		p, err := NewPool[*TestHeavyObject](poolSize, int64(poolCap), cfg, factory)
+		if err != nil {
+			t.Fatal("failed to create pool: ", err)
+		}
 
-	// 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
-	// 	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
+		defer cancel()
 
-	// 	expectedObj := &TestHeavyObject{
-	// 		Bytes1: make([]byte, 0, sliceCap),
-	// 		Bytes2: make([]byte, 0, sliceCap),
-	// 	}
-	// 	for i := range requests {
-	// 		obj := p.Get(ctx)
+		expectedObj := &TestHeavyObject{
+			Bytes1: make([]byte, 0, sliceCap),
+			Bytes2: make([]byte, 0, sliceCap),
+		}
+		for i := range requests {
+			obj := p.Get(ctx)
 
-	// 		obj.Value.Bytes1 = append(obj.Value.Bytes1, []byte("object data 1")...)
-	// 		obj.Value.Bytes2 = append(obj.Value.Bytes2, []byte("object data 2")...)
+			obj.Value.Bytes1 = append(obj.Value.Bytes1, []byte("object data 1")...)
+			obj.Value.Bytes2 = append(obj.Value.Bytes2, []byte("object data 2")...)
 
-	// 		p.Put(obj)
+			p.Put(obj)
 
-	// 		if !reflect.DeepEqual(expectedObj, obj.Value) {
-	// 			t.Fatalf("iteration %d: expected %v, got: %v", i, expectedObj, obj.Value)
-	// 		}
-	// 	}
+			if !reflect.DeepEqual(expectedObj, obj.Value) {
+				t.Fatalf("iteration %d: expected %v, got: %v", i, expectedObj, obj.Value)
+			}
+		}
 
-	// 	expectedStats := &Stats{
-	// 		Capacity: int64(poolCap),
-	// 		Created:  10,
-	// 		Missed:   0,
-	// 		Active:   0,
-	// 	}
+		expectedStats := &Stats{
+			Capacity: int64(poolCap),
+			Created:  10,
+			Missed:   0,
+			Active:   0,
+		}
 
-	// 	currentStats := p.Stats()
-	// 	if !reflect.DeepEqual(expectedStats, currentStats) {
-	// 		t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-	// 	}
-	// })
-	// t.Run("capacity limit", func(t *testing.T) {
-	// 	const (
-	// 		requests = 11
-	// 		poolSize = 10
-	// 		poolCap  = 10
-	// 		sliceCap = 1024
-	// 	)
+		currentStats := p.Stats()
+		if !reflect.DeepEqual(expectedStats, currentStats) {
+			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
+		}
+	})
+	t.Run("capacity limit", func(t *testing.T) {
+		const (
+			requests = 11
+			poolSize = 10
+			poolCap  = 10
+			sliceCap = 1024
+		)
 
-	// 	cfg := NewConfig[*TestHeavyObject]()
-	// 	factory := func() *TestHeavyObject {
-	// 		return &TestHeavyObject{
-	// 			Bytes1: make([]byte, 0, sliceCap),
-	// 			Bytes2: make([]byte, 0, sliceCap),
-	// 		}
-	// 	}
+		cfg := NewConfig[*TestHeavyObject]()
+		factory := func() *TestHeavyObject {
+			return &TestHeavyObject{
+				Bytes1: make([]byte, 0, sliceCap),
+				Bytes2: make([]byte, 0, sliceCap),
+			}
+		}
 
-	// 	p, err := NewPool[*TestHeavyObject](poolSize, int64(poolCap), cfg, factory)
-	// 	if err != nil {
-	// 		t.Fatal("failed to create pool: ", err)
-	// 	}
+		p, err := NewPool[*TestHeavyObject](poolSize, int64(poolCap), cfg, factory)
+		if err != nil {
+			t.Fatal("failed to create pool: ", err)
+		}
 
-	// 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
-	// 	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
+		defer cancel()
 
-	// 	objects := make([]*PoolObject[*TestHeavyObject], 0, poolCap)
-	// 	for i := range poolCap {
-	// 		obj := p.Get(ctx)
-	// 		if obj.Value == nil {
-	// 			t.Fatalf("iteration %d: expected %v, got: %v", i, &TestHeavyObject{}, obj)
-	// 		}
+		objects := make([]*PoolObject[*TestHeavyObject], 0, poolCap)
+		for i := range poolCap {
+			obj := p.Get(ctx)
+			if obj.Value == nil {
+				t.Fatalf("iteration %d: expected %v, got: %v", i, &TestHeavyObject{}, obj)
+			}
 
-	// 		objects = append(objects, obj)
-	// 	}
+			objects = append(objects, obj)
+		}
 
-	// 	if res := p.Get(ctx); res != nil {
-	// 		t.Fatalf("expected nil, got: %v", res)
-	// 	}
+		if res := p.Get(ctx); res != nil {
+			t.Fatalf("expected nil, got: %v", res)
+		}
 
-	// 	expectedStats := &Stats{
-	// 		Capacity: int64(poolCap),
-	// 		Created:  10,
-	// 		Missed:   1,
-	// 		Active:   10,
-	// 	}
+		expectedStats := &Stats{
+			Capacity: int64(poolCap),
+			Created:  10,
+			Missed:   1,
+			Active:   10,
+		}
 
-	// 	currentStats := p.Stats()
-	// 	if !reflect.DeepEqual(expectedStats, currentStats) {
-	// 		t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-	// 	}
+		currentStats := p.Stats()
+		if !reflect.DeepEqual(expectedStats, currentStats) {
+			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
+		}
 
-	// 	for _, obj := range objects {
-	// 		p.Put(obj)
-	// 	}
+		for _, obj := range objects {
+			p.Put(obj)
+		}
 
-	// 	expectedStats = &Stats{
-	// 		Capacity: int64(poolCap),
-	// 		Created:  10,
-	// 		Missed:   1,
-	// 		Active:   0,
-	// 	}
+		expectedStats = &Stats{
+			Capacity: int64(poolCap),
+			Created:  10,
+			Missed:   1,
+			Active:   0,
+		}
 
-	// 	currentStats = p.Stats()
-	// 	if !reflect.DeepEqual(expectedStats, currentStats) {
-	// 		t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-	// 	}
-	// })
-	// t.Run("concurrency", func(t *testing.T) {
-	// 	const (
-	// 		requests = 100
-	// 		poolSize = 2
-	// 		poolCap  = 10
-	// 		sliceCap = 10
-	// 	)
+		currentStats = p.Stats()
+		if !reflect.DeepEqual(expectedStats, currentStats) {
+			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
+		}
+	})
+	t.Run("concurrency", func(t *testing.T) {
+		const (
+			requests = 100
+			poolSize = 2
+			poolCap  = 10
+			sliceCap = 10
+		)
 
-	// 	cfg := NewConfig[*TestHeavyObject]()
-	// 	factory := func() *TestHeavyObject {
-	// 		return &TestHeavyObject{
-	// 			Bytes1: make([]byte, 0, sliceCap),
-	// 			Bytes2: make([]byte, 0, sliceCap),
-	// 		}
-	// 	}
+		cfg := NewConfig[*TestHeavyObject]()
+		factory := func() *TestHeavyObject {
+			return &TestHeavyObject{
+				Bytes1: make([]byte, 0, sliceCap),
+				Bytes2: make([]byte, 0, sliceCap),
+			}
+		}
 
-	// 	p, err := NewPool[*TestHeavyObject](poolSize, poolCap, cfg, factory)
-	// 	if err != nil {
-	// 		t.Fatal("failed to create pool:", err)
-	// 	}
+		p, err := NewPool[*TestHeavyObject](poolSize, poolCap, cfg, factory)
+		if err != nil {
+			t.Fatal("failed to create pool:", err)
+		}
 
-	// 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
-	// 	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
+		defer cancel()
 
-	// 	var wg sync.WaitGroup
+		var wg sync.WaitGroup
 
-	// 	for range requests {
-	// 		wg.Go(func() {
-	// 			obj1 := p.Get(ctx)
-	// 			if obj1 != nil {
-	// 				obj1.Value.Bytes1 = append(obj1.Value.Bytes1, []byte("some data")...)
-	// 				obj1.Value.Bytes2 = append(obj1.Value.Bytes2, []byte("some data")...)
-	// 				time.Sleep(time.Millisecond * 20)
-	// 				p.Put(obj1)
-	// 			}
-	// 		})
-	// 	}
+		for range requests {
+			wg.Go(func() {
+				obj1 := p.Get(ctx)
+				if obj1 != nil {
+					obj1.Value.Bytes1 = append(obj1.Value.Bytes1, []byte("some data")...)
+					obj1.Value.Bytes2 = append(obj1.Value.Bytes2, []byte("some data")...)
+					time.Sleep(time.Millisecond * 20)
+					p.Put(obj1)
+				}
+			})
+		}
 
-	// 	wg.Wait()
+		wg.Wait()
 
-	// 	expectedStats := &Stats{
-	// 		Capacity: int64(poolCap),
-	// 		Created:  10,
-	// 		Missed:   90,
-	// 		Active:   0,
-	// 	}
+		expectedStats := &Stats{
+			Capacity: int64(poolCap),
+			Created:  10,
+			Missed:   90,
+			Active:   0,
+		}
 
-	// 	currentStats := p.Stats()
-	// 	if !reflect.DeepEqual(expectedStats, currentStats) {
-	// 		t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-	// 	}
-	// })
+		currentStats := p.Stats()
+		if !reflect.DeepEqual(expectedStats, currentStats) {
+			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
+		}
+	})
 	t.Run("cleaning", func(t *testing.T) {
 		const (
 			requests = 10
