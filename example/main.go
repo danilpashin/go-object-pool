@@ -111,6 +111,10 @@ func main() {
 	pSlice, err := pool.NewPool[[]int](2, 2, conf2, func() []int {
 		return make([]int, 0, 1)
 	})
+	if err != nil {
+		fmt.Printf("Error creating pool: %v\n", err)
+		return
+	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
