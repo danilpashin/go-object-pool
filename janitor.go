@@ -1,38 +1,40 @@
 package pool
 
 import (
+	"log"
 	"sync/atomic"
 	"time"
 )
 
-func (p *Pool[T]) cleaner() {
-	ticker := time.NewTicker(p.conf.ScanInterval)
+func (c *poolCore[T]) cleaner() {
+	ticker := time.NewTicker(c.conf.ScanInterval)
 	defer ticker.Stop()
 
-	minIdle := int64(p.conf.MinIdle)
-	deleteSize := p.conf.DeleteSize
+	minIdle := c.conf.MinIdle
+	deleteSize := c.conf.DeleteSize
 
 	for {
 		select {
 		case <-ticker.C:
-			created := atomic.LoadInt64(&p.created)
+			created := atomic.LoadInt64(&c.created)
 			if created > minIdle {
 				for range min(created-minIdle, int64(deleteSize)) {
 					select {
-					case obj := <-p.objects:
+					case obj := <-c.objects:
 						if obj != nil {
 							if time.Since(obj.lastUsed) > time.Millisecond*100 {
-								atomic.AddInt64(&p.created, -1)
+								atomic.AddInt64(&c.created, -1)
 								obj = nil
 							} else {
-								p.objects <- obj
+								c.objects <- obj
 							}
 						}
 					default:
 					}
 				}
 			}
-		case <-p.conf.stop:
+		case <-c.conf.stop:
+			log.Println("Cleaner finished")
 			return
 		}
 	}

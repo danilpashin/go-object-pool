@@ -9,11 +9,11 @@ type Stats struct {
 	Active   int64
 }
 
-func (p *Pool[T]) Stats() *Stats {
+func (c *poolCore[T]) Stats() *Stats {
 	return &Stats{
-		Capacity: atomic.LoadInt64(&p.capacity),
-		Created:  atomic.LoadInt64(&p.created),
-		Missed:   atomic.LoadInt64(&p.missed),
-		Active:   atomic.LoadInt64(&p.created) - int64(len(p.objects)),
+		Capacity: atomic.LoadInt64(&c.capacity),
+		Created:  atomic.LoadInt64(&c.created),
+		Missed:   atomic.LoadInt64(&c.missed),
+		Active:   atomic.LoadInt64(&c.created) - int64(len(c.objects)),
 	}
 }

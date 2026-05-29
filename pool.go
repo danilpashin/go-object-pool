@@ -3,11 +3,21 @@ package pool
 import (
 	"context"
 	"errors"
+	"fmt"
+	"runtime"
 	"sync/atomic"
 	"time"
 )
 
 type Pool[T any] struct {
+	core *poolCore[T]
+}
+
+func (p *Pool[T]) Get(ctx context.Context) *PoolObject[T] { return p.core.Get(ctx) }
+func (p *Pool[T]) Put(object *PoolObject[T])              { p.core.Put(object) }
+func (p *Pool[T]) Stats() *Stats                          { return p.core.Stats() }
+
+type poolCore[T any] struct {
 	objects  chan *PoolObject[T]
 	capacity int64
 	created  int64
@@ -23,70 +33,103 @@ type PoolObject[T any] struct {
 
 func NewPool[T any](initialSize int, capacity int64, conf *PoolConfig[T], factory func() T) (*Pool[T], error) {
 	if capacity <= 0 {
-		return nil, errors.New("invalid capacity")
+		return nil, fmt.Errorf("capacity must be positive, got %d", capacity)
+	}
+	if initialSize < 0 {
+		return nil, fmt.Errorf("initial size cannot be negative, got %d", initialSize)
+	}
+	if initialSize > int(capacity) {
+		return nil, fmt.Errorf("initial size (%d) cannot exceed capacity (%d)", initialSize, capacity)
+	}
+	if factory == nil {
+		return nil, errors.New("factory function is required")
 	}
 
-	pool := &Pool[T]{
+	if conf != nil {
+		if conf.MinIdle > capacity || conf.MinIdle < 0 {
+			return nil, fmt.Errorf("min idle cannot be negative or exceed capacity, got %d", conf.MinIdle)
+		}
+		if conf.ScanInterval < 0 {
+			return nil, fmt.Errorf("scan interval cannot be negative, got %v", conf.ScanInterval)
+		}
+		if conf.DeleteSize < 0 {
+			return nil, fmt.Errorf("delete size cannot be negative, got %d", conf.DeleteSize)
+		}
+	} else {
+		return nil, errors.New("configuration settings are required")
+	}
+
+	if conf.stop == nil {
+		conf.stop = make(chan struct{})
+	}
+
+	core := &poolCore[T]{
 		objects:  make(chan *PoolObject[T], capacity),
 		capacity: capacity,
 		factory:  factory,
 		conf:     conf,
 	}
+	go core.cleaner()
+
+	pool := &Pool[T]{core: core}
 
 	for range initialSize {
 		obj := &PoolObject[T]{
 			Value:    factory(),
 			lastUsed: time.Now(),
 		}
-		pool.objects <- obj
-		atomic.AddInt64(&pool.created, 1)
+		core.objects <- obj
+		atomic.AddInt64(&core.created, 1)
 	}
-	go pool.cleaner()
+
+	runtime.AddCleanup(pool, func(stopChan chan struct{}) {
+		close(stopChan)
+	}, core.conf.stop)
 
 	return pool, nil
 }
 
-func (p *Pool[T]) Get(ctx context.Context) *PoolObject[T] {
+func (c *poolCore[T]) Get(ctx context.Context) *PoolObject[T] {
 	if ctx == nil {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.Background(), p.conf.MaxWait)
+		ctx, cancel = context.WithTimeout(context.Background(), c.conf.MaxWait)
 		defer cancel()
 	}
 
 	select {
-	case obj := <-p.objects:
+	case obj := <-c.objects:
 		obj.lastUsed = time.Now()
 		return obj
 	default:
 	}
 
-	newCreated := atomic.AddInt64(&p.created, 1)
+	newCreated := atomic.AddInt64(&c.created, 1)
 
-	if newCreated > atomic.LoadInt64(&p.capacity) {
-		atomic.AddInt64(&p.created, -1)
+	if newCreated > atomic.LoadInt64(&c.capacity) {
+		atomic.AddInt64(&c.created, -1)
 		select {
-		case obj := <-p.objects:
+		case obj := <-c.objects:
 			obj.lastUsed = time.Now()
 			return obj
 		case <-ctx.Done():
-			atomic.AddInt64(&p.missed, 1)
+			atomic.AddInt64(&c.missed, 1)
 			var zero *PoolObject[T]
 			return zero
 		}
 	}
 
 	obj := &PoolObject[T]{
-		Value:    p.factory(),
+		Value:    c.factory(),
 		lastUsed: time.Now(),
 	}
 
 	return obj
 }
 
-func (p *Pool[T]) Put(object *PoolObject[T]) {
-	if p.conf.ResetFunc != nil {
+func (c *poolCore[T]) Put(object *PoolObject[T]) {
+	if c.conf.ResetFunc != nil {
 		object.lastUsed = time.Now()
-		p.conf.ResetFunc(object.Value)
+		c.conf.ResetFunc(object.Value)
 	} else if resettable, ok := any(object.Value).(Resettable); ok {
 		object.lastUsed = time.Now()
 		resettable.Reset()
@@ -95,5 +138,5 @@ func (p *Pool[T]) Put(object *PoolObject[T]) {
 		object = zero
 	}
 
-	p.objects <- object
+	c.objects <- object
 }

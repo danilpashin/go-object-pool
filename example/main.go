@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"time"
 
 	pool "github.com/danilpashin/go-object-pool"
@@ -90,10 +91,17 @@ func main() {
 
 	fmt.Printf("Pool(HeavyObject) stats: %+v\n", p.Stats())
 
+	// Allow pool to be garbage collected, which stops background cleaner goroutine
+	p = nil
+
+	// Force GC to demonstrate janitor shutdown (for example only)
+	// Janitor automatically stops when pool is garbage collected
+	runtime.GC()
+
 	// Regular objects (slices, arrays, strings, int, float types etc.).
 	conf2 := pool.NewConfig[[]int](
 		pool.WithResetFunc(func(obj []int) {
-		obj = obj[:0]
+			obj = obj[:0]
 		}),
 	)
 
@@ -137,4 +145,14 @@ func main() {
 	slice = nil
 
 	fmt.Printf("Pool([]int) stats: %+v\n", pSlice.Stats())
+
+	// Allow pool to be garbage collected, which stops background cleaner goroutine
+	pSlice = nil
+
+	// Force GC to demonstrate janitor shutdown (for example only)
+	// Janitor automatically stops when pool is garbage collected
+	runtime.GC()
+
+	// Waiting for cleaner finished message
+	time.Sleep(time.Second * 1)
 }
