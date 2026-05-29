@@ -40,7 +40,7 @@ func WithDeleteSize[T any](n int) Option[T] {
 
 func NewConfig[T any](opts ...Option[T]) *PoolConfig[T] {
 	conf := &PoolConfig[T]{
-		MinIdle:      10,
+		MinIdle:      1,
 		MaxWait:      time.Second * 3,
 		ScanInterval: time.Second,
 		MaxLifetime:  time.Second,
