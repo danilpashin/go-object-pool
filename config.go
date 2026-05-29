@@ -3,30 +3,23 @@ package pool
 import "time"
 
 type PoolConfig[T any] struct {
-	MaxTotal           int
-	MaxIdle            int
-	MinIdle            int
-	BlockWhenExhausted bool
-	MaxWait            time.Duration
-	ResetFunc          func(T)
+	Capacity     int
+	MinIdle      int
+	MaxWait      time.Duration
+	ResetFunc    func(*PoolObject[T])
+	ScanInterval time.Duration
+	DeleteSize   int
+	stop         chan struct{}
 }
 
 type Option[T any] func(*PoolConfig[T])
 
-func WithMaxTotal[T any](n int) Option[T] {
-	return func(c *PoolConfig[T]) { c.MaxTotal = n }
-}
-
-func WithMaxIdle[T any](n int) Option[T] {
-	return func(c *PoolConfig[T]) { c.MaxIdle = n }
+func WithCapacity[T any](n int) Option[T] {
+	return func(c *PoolConfig[T]) { c.Capacity = n }
 }
 
 func WithMinIdle[T any](n int) Option[T] {
 	return func(c *PoolConfig[T]) { c.MinIdle = n }
-}
-
-func WithBlockWhenExhausted[T any](b bool) Option[T] {
-	return func(c *PoolConfig[T]) { c.BlockWhenExhausted = b }
 }
 
 func WithMaxWait[T any](d time.Duration) Option[T] {
@@ -35,11 +28,12 @@ func WithMaxWait[T any](d time.Duration) Option[T] {
 
 func NewConfig[T any](opts ...Option[T]) *PoolConfig[T] {
 	conf := &PoolConfig[T]{
-		MaxTotal:           100,
-		MaxIdle:            30,
-		MinIdle:            10,
-		BlockWhenExhausted: true,
-		MaxWait:            time.Second * 3,
+		Capacity:     100,
+		MinIdle:      10,
+		MaxWait:      time.Second * 3,
+		ScanInterval: time.Second,
+		DeleteSize:   5,
+		stop:         make(chan struct{}),
 	}
 
 	for _, opt := range opts {

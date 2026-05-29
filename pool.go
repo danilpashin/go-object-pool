@@ -3,16 +3,23 @@ package pool
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
+	"time"
 )
 
 type Pool[T any] struct {
-	objects  chan T
+	objects  chan *PoolObject[T]
 	capacity int64
 	created  int64
 	missed   int64
 	factory  func() T
 	conf     *PoolConfig[T]
+}
+
+type PoolObject[T any] struct {
+	Value    T
+	lastUsed time.Time
 }
 
 func NewPool[T any](initialSize int, capacity int64, conf *PoolConfig[T], factory func() T) (*Pool[T], error) {
@@ -21,21 +28,26 @@ func NewPool[T any](initialSize int, capacity int64, conf *PoolConfig[T], factor
 	}
 
 	pool := &Pool[T]{
-		objects:  make(chan T, capacity),
+		objects:  make(chan *PoolObject[T], capacity),
 		capacity: capacity,
 		factory:  factory,
 		conf:     conf,
 	}
 
 	for range initialSize {
-		pool.objects <- factory()
+		obj := &PoolObject[T]{
+			Value:    factory(),
+			lastUsed: time.Now(),
+		}
+		pool.objects <- obj
 		atomic.AddInt64(&pool.created, 1)
 	}
+	go pool.cleaner()
 
 	return pool, nil
 }
 
-func (p *Pool[T]) Get(ctx context.Context) T {
+func (p *Pool[T]) Get(ctx context.Context) *PoolObject[T] {
 	if ctx == nil {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(context.Background(), p.conf.MaxWait)
@@ -44,6 +56,7 @@ func (p *Pool[T]) Get(ctx context.Context) T {
 
 	select {
 	case obj := <-p.objects:
+		obj.lastUsed = time.Now()
 		return obj
 	default:
 	}
@@ -54,25 +67,34 @@ func (p *Pool[T]) Get(ctx context.Context) T {
 		atomic.AddInt64(&p.created, -1)
 		select {
 		case obj := <-p.objects:
+			obj.lastUsed = time.Now()
 			return obj
 		case <-ctx.Done():
 			atomic.AddInt64(&p.missed, 1)
-			var zero T
+			var zero *PoolObject[T]
 			return zero
 		}
 	}
 
-	return p.factory()
+	obj := &PoolObject[T]{
+		Value:    p.factory(),
+		lastUsed: time.Now(),
+	}
+
+	return obj
 }
 
-func (p *Pool[T]) Put(object T) {
+func (p *Pool[T]) Put(object *PoolObject[T]) {
 	if p.conf.ResetFunc != nil {
+		object.lastUsed = time.Now()
 		p.conf.ResetFunc(object)
-	} else if resettable, ok := any(object).(Resettable); ok {
+	} else if resettable, ok := any(object.Value).(Resettable); ok {
+		object.lastUsed = time.Now()
 		resettable.Reset()
 	} else {
-		var zero T
+		var zero *PoolObject[T]
 		object = zero
+		fmt.Println("nil object")
 	}
 
 	p.objects <- object
