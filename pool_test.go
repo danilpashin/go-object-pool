@@ -27,11 +27,12 @@ func TestPool(t *testing.T) {
 			sliceCap = 1024
 		)
 
-		cfg := NewConfig[*TestHeavyObject]()
-		cfg.ResetFunc = func(p *TestHeavyObject) {
-			p.Bytes1 = p.Bytes1[:0]
-			p.Bytes2 = p.Bytes2[:0]
-		}
+		cfg := NewConfig[*TestHeavyObject](
+			WithResetFunc(func(p *TestHeavyObject) {
+				p.Bytes1 = p.Bytes1[:0]
+				p.Bytes2 = p.Bytes2[:0]
+			}),
+		)
 		factory := func() *TestHeavyObject {
 			return &TestHeavyObject{
 				Bytes1: make([]byte, 0, sliceCap),
@@ -202,10 +203,11 @@ func TestPool(t *testing.T) {
 			sliceCap = 10
 		)
 
-		cfg := NewConfig[*TestHeavyObject]()
-		cfg.MinIdle = 2
-		cfg.ScanInterval = time.Millisecond * 50
-		cfg.DeleteSize = 2
+		cfg := NewConfig[*TestHeavyObject](
+			WithMinIdle[*TestHeavyObject](2),
+			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
+			WithDeleteSize[*TestHeavyObject](2),
+		)
 		factory := func() *TestHeavyObject {
 			return &TestHeavyObject{
 				Bytes1: make([]byte, 0, sliceCap),
@@ -258,10 +260,11 @@ func TestPool(t *testing.T) {
 			sliceCap = 10
 		)
 
-		cfg := NewConfig[*TestHeavyObject]()
-		cfg.MinIdle = 2
-		cfg.ScanInterval = time.Millisecond * 50
-		cfg.DeleteSize = 4
+		cfg := NewConfig[*TestHeavyObject](
+			WithMinIdle[*TestHeavyObject](2),
+			WithDeleteSize[*TestHeavyObject](4),
+			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
+		)
 		factory := func() *TestHeavyObject {
 			return &TestHeavyObject{
 				Bytes1: make([]byte, 0, sliceCap),

@@ -25,10 +25,11 @@ func main() {
 	// ScanInterval defines how often the janitor checks for idle objects to remove.
 	// DeleteSize specifies how many idle objects are removed per scan when
 	// the pool size exceeds MinIdle.
-	conf := pool.NewConfig[*HeavyObject]()
-	conf.MinIdle = 2
-	conf.ScanInterval = time.Second * 5
-	conf.DeleteSize = 1
+	conf := pool.NewConfig[*HeavyObject](
+		pool.WithMinIdle[*HeavyObject](2),
+		pool.WithScanInterval[*HeavyObject](time.Second*5),
+		pool.WithDeleteSize[*HeavyObject](1),
+	)
 
 	// Heavy objects (structures with multiple fields and lots of data).
 	// Creating pool with parameters: initialSize = 2, capacity = 3.
@@ -90,10 +91,11 @@ func main() {
 	fmt.Printf("Pool(HeavyObject) stats: %+v\n", p.Stats())
 
 	// Regular objects (slices, arrays, strings, int, float types etc.).
-	conf2 := pool.NewConfig[[]int]()
-	conf2.ResetFunc = func(obj []int) {
+	conf2 := pool.NewConfig[[]int](
+		pool.WithResetFunc(func(obj []int) {
 		obj = obj[:0]
-	}
+		}),
+	)
 
 	// Creating pool with parameters: initalSize = 2, capacity = 2.
 	pSlice, err := pool.NewPool[[]int](2, 2, conf2, func() []int {
