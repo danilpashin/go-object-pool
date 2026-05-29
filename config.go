@@ -6,7 +6,7 @@ type PoolConfig[T any] struct {
 	Capacity     int
 	MinIdle      int
 	MaxWait      time.Duration
-	ResetFunc    func(*PoolObject[T])
+	ResetFunc    func(T)
 	ScanInterval time.Duration
 	DeleteSize   int
 	stop         chan struct{}

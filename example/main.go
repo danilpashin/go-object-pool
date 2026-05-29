@@ -91,8 +91,8 @@ func main() {
 
 	// Regular objects (slices, arrays, strings, int, float types etc.).
 	conf2 := pool.NewConfig[[]int]()
-	conf2.ResetFunc = func(obj *pool.PoolObject[[]int]) {
-		obj.Value = obj.Value[:0]
+	conf2.ResetFunc = func(obj []int) {
+		obj = obj[:0]
 	}
 
 	// Creating pool with parameters: initalSize = 2, capacity = 2.

@@ -3,7 +3,6 @@ package pool
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync/atomic"
 	"time"
 )
@@ -87,7 +86,7 @@ func (p *Pool[T]) Get(ctx context.Context) *PoolObject[T] {
 func (p *Pool[T]) Put(object *PoolObject[T]) {
 	if p.conf.ResetFunc != nil {
 		object.lastUsed = time.Now()
-		p.conf.ResetFunc(object)
+		p.conf.ResetFunc(object.Value)
 	} else if resettable, ok := any(object.Value).(Resettable); ok {
 		object.lastUsed = time.Now()
 		resettable.Reset()
