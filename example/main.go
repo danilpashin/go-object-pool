@@ -20,8 +20,15 @@ func (h *HeavyObject) Reset() {
 }
 
 func main() {
+	// Config contains parameters for background cleaner goroutine
+	//
+	// ScanInterval defines how often the janitor checks for idle objects to remove.
+	// DeleteSize specifies how many idle objects are removed per scan when
+	// the pool size exceeds MinIdle.
 	conf := pool.NewConfig[*HeavyObject]()
-	conf.MaxTotal = 3
+	conf.MinIdle = 2
+	conf.ScanInterval = time.Second * 5
+	conf.DeleteSize = 1
 
 	// Heavy objects (structures with multiple fields and lots of data).
 	// Creating pool with parameters: initialSize = 2, capacity = 3.
@@ -46,16 +53,16 @@ func main() {
 		return
 	}
 	// Putting data in obj1
-	obj1.Bytes1 = append(obj1.Bytes1, []byte("first object data")...)
+	obj1.Value.Bytes1 = append(obj1.Value.Bytes1, []byte("first object data")...)
 
 	// 2. Getting second object (last free in pool).
 	obj2 := p.Get(ctx)
-	obj2.Bytes1 = append(obj2.Bytes1, []byte("second object data")...)
+	obj2.Value.Bytes1 = append(obj2.Value.Bytes1, []byte("second object data")...)
 
 	// 3. Trying to get third object. Pool is empty (created = 2, capacity = 3).
 	// Object dynamically created in the pool.
 	obj3 := p.Get(ctx)
-	obj3.Bytes2 = append(obj3.Bytes2, []byte("third object data")...)
+	obj3.Value.Bytes2 = append(obj3.Value.Bytes2, []byte("third object data")...)
 
 	// 4. Trying to get fourth object. Pool is empty and fully used (created = 3, capacity = 3).
 	// Should be blocked call.
@@ -66,9 +73,9 @@ func main() {
 	}
 
 	// Imitating work...
-	fmt.Printf("Working with obj1: %s\n", string(obj1.Bytes1))
-	fmt.Printf("Working with obj2: %s\n", string(obj2.Bytes1))
-	fmt.Printf("Working with obj3: %s\n", string(obj3.Bytes2))
+	fmt.Printf("Working with obj1: %s\n", string(obj1.Value.Bytes1))
+	fmt.Printf("Working with obj2: %s\n", string(obj2.Value.Bytes1))
+	fmt.Printf("Working with obj3: %s\n", string(obj3.Value.Bytes2))
 
 	// 5. Returning objects to pool. Reset() works automatically.
 	p.Put(obj1)
@@ -80,11 +87,14 @@ func main() {
 	obj2 = nil
 	obj3 = nil
 
-	conf2 := pool.NewConfig[[]int]()
-	conf2.ResetFunc = func(slice []int) {
-		slice = slice[:0]
-	}
+	fmt.Printf("Pool(HeavyObject) stats: %+v\n", p.Stats())
+
 	// Regular objects (slices, arrays, strings, int, float types etc.).
+	conf2 := pool.NewConfig[[]int]()
+	conf2.ResetFunc = func(obj *pool.PoolObject[[]int]) {
+		obj.Value = obj.Value[:0]
+	}
+
 	// Creating pool with parameters: initalSize = 2, capacity = 2.
 	pSlice, err := pool.NewPool[[]int](2, 2, conf2, func() []int {
 		return make([]int, 0, 1)
@@ -97,9 +107,9 @@ func main() {
 	slice := pSlice.Get(ctx)
 
 	// Putting data in slice.
-	slice = append(slice, 5)
+	slice.Value = append(slice.Value, 5)
 
-	fmt.Printf("Used slice: %v\n", slice)
+	fmt.Printf("Used slice: %v\n", slice.Value)
 
 	// 2. Returning slice to the pool.
 	// No Reset(). Object gets default value of its type.
@@ -123,4 +133,6 @@ func main() {
 
 	// nil to pointer to not use slice later.
 	slice = nil
+
+	fmt.Printf("Pool([]int) stats: %+v\n", pSlice.Stats())
 }
