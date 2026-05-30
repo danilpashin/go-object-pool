@@ -28,7 +28,7 @@ func TestPool(t *testing.T) {
 			sliceCap = 1024
 		)
 
-		cfg := NewConfig[*TestHeavyObject](
+		cfg := NewConfig(
 			WithResetFunc(func(p *TestHeavyObject) {
 				p.Bytes1 = p.Bytes1[:0]
 				p.Bytes2 = p.Bytes2[:0]
@@ -41,7 +41,7 @@ func TestPool(t *testing.T) {
 			}
 		}
 
-		p, err := NewPool[*TestHeavyObject](poolSize, int64(poolCap), cfg, factory)
+		p, err := NewPool(poolSize, int64(poolCap), cfg, factory)
 		if err != nil {
 			t.Fatal("failed to create pool: ", err)
 		}
@@ -94,7 +94,7 @@ func TestPool(t *testing.T) {
 			}
 		}
 
-		p, err := NewPool[*TestHeavyObject](poolSize, int64(poolCap), cfg, factory)
+		p, err := NewPool(poolSize, int64(poolCap), cfg, factory)
 		if err != nil {
 			t.Fatal("failed to create pool: ", err)
 		}
@@ -160,7 +160,7 @@ func TestPool(t *testing.T) {
 			}
 		}
 
-		p, err := NewPool[*TestHeavyObject](poolSize, poolCap, cfg, factory)
+		p, err := NewPool(poolSize, poolCap, cfg, factory)
 		if err != nil {
 			t.Fatal("failed to create pool:", err)
 		}
@@ -204,7 +204,7 @@ func TestPool(t *testing.T) {
 			sliceCap = 10
 		)
 
-		cfg := NewConfig[*TestHeavyObject](
+		cfg := NewConfig(
 			WithMinIdle[*TestHeavyObject](2),
 			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
 			WithDeleteSize[*TestHeavyObject](2),
@@ -217,7 +217,7 @@ func TestPool(t *testing.T) {
 			}
 		}
 
-		p, err := NewPool[*TestHeavyObject](poolSize, poolCap, cfg, factory)
+		p, err := NewPool(poolSize, poolCap, cfg, factory)
 		if err != nil {
 			t.Fatal("failed to create pool:", err)
 		}
@@ -262,7 +262,7 @@ func TestPool(t *testing.T) {
 			sliceCap = 10
 		)
 
-		cfg := NewConfig[*TestHeavyObject](
+		cfg := NewConfig(
 			WithMinIdle[*TestHeavyObject](2),
 			WithDeleteSize[*TestHeavyObject](4),
 			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
@@ -275,7 +275,7 @@ func TestPool(t *testing.T) {
 			}
 		}
 
-		p, err := NewPool[*TestHeavyObject](poolSize, poolCap, cfg, factory)
+		p, err := NewPool(poolSize, poolCap, cfg, factory)
 		if err != nil {
 			t.Fatal("failed to create pool:", err)
 		}
@@ -320,7 +320,7 @@ func TestPool(t *testing.T) {
 			sliceCap = 100
 		)
 
-		cfg := NewConfig[*TestHeavyObject](
+		cfg := NewConfig(
 			WithMinIdle[*TestHeavyObject](5000),
 			WithDeleteSize[*TestHeavyObject](1000),
 			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
@@ -333,7 +333,7 @@ func TestPool(t *testing.T) {
 			}
 		}
 
-		p, err := NewPool[*TestHeavyObject](poolSize, poolCap, cfg, factory)
+		p, err := NewPool(poolSize, poolCap, cfg, factory)
 		if err != nil {
 			t.Fatal("failed to create pool:", err)
 		}
@@ -379,7 +379,7 @@ func TestPool(t *testing.T) {
 			sliceCap = 10
 		)
 
-		cfg := NewConfig[*TestHeavyObject](
+		cfg := NewConfig(
 			WithMinIdle[*TestHeavyObject](5000),
 			WithDeleteSize[*TestHeavyObject](5000),
 			WithScanInterval[*TestHeavyObject](time.Millisecond*100),
@@ -392,7 +392,7 @@ func TestPool(t *testing.T) {
 			}
 		}
 
-		p, err := NewPool[*TestHeavyObject](poolSize, poolCap, cfg, factory)
+		p, err := NewPool(poolSize, poolCap, cfg, factory)
 		if err != nil {
 			t.Fatal("failed to create pool:", err)
 		}
@@ -440,7 +440,7 @@ func TestPool(t *testing.T) {
 
 		heavyData := bytes.Repeat([]byte{'A'}, 10000)
 
-		cfg := NewConfig[*TestHeavyObject](
+		cfg := NewConfig(
 			WithMinIdle[*TestHeavyObject](5000),
 			WithDeleteSize[*TestHeavyObject](5000),
 			WithScanInterval[*TestHeavyObject](time.Millisecond*100),
@@ -453,7 +453,7 @@ func TestPool(t *testing.T) {
 			}
 		}
 
-		p, err := NewPool[*TestHeavyObject](poolSize, poolCap, cfg, factory)
+		p, err := NewPool(poolSize, poolCap, cfg, factory)
 		if err != nil {
 			t.Fatal("failed to create pool:", err)
 		}
@@ -501,7 +501,7 @@ func TestPool(t *testing.T) {
 
 		heavyData := bytes.Repeat([]byte{'A'}, 10000)
 
-		cfg := NewConfig[*TestHeavyObject](
+		cfg := NewConfig(
 			WithMinIdle[*TestHeavyObject](5000),
 			WithDeleteSize[*TestHeavyObject](5000),
 			WithScanInterval[*TestHeavyObject](time.Millisecond*100),
@@ -514,7 +514,7 @@ func TestPool(t *testing.T) {
 			}
 		}
 
-		p, err := NewPool[*TestHeavyObject](poolSize, poolCap, cfg, factory)
+		p, err := NewPool(poolSize, poolCap, cfg, factory)
 		if err != nil {
 			t.Fatal("failed to create pool:", err)
 		}

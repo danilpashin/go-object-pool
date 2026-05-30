@@ -27,7 +27,7 @@ func main() {
 	// MaxLifetime defines how long a pool object can live before being removed.
 	// DeleteSize specifies how many idle objects are removed per scan when
 	// the pool size exceeds MinIdle.
-	conf := pool.NewConfig[*HeavyObject](
+	conf := pool.NewConfig(
 		pool.WithMinIdle[*HeavyObject](2),
 		pool.WithScanInterval[*HeavyObject](time.Second*5),
 		pool.WithMaxLifetime[*HeavyObject](time.Millisecond*50),
@@ -36,7 +36,7 @@ func main() {
 
 	// Heavy objects (structures with multiple fields and lots of data).
 	// Creating pool with parameters: initialSize = 2, capacity = 3.
-	p, err := pool.NewPool[*HeavyObject](2, 3, conf, func() *HeavyObject {
+	p, err := pool.NewPool(2, 3, conf, func() *HeavyObject {
 		return &HeavyObject{
 			Bytes1: make([]byte, 0, 8192),
 			Bytes2: make([]byte, 0, 8192),
@@ -101,14 +101,14 @@ func main() {
 	runtime.GC()
 
 	// Regular objects (slices, arrays, strings, int, float types etc.).
-	conf2 := pool.NewConfig[[]int](
+	conf2 := pool.NewConfig(
 		pool.WithResetFunc(func(obj []int) {
 			obj = obj[:0]
 		}),
 	)
 
 	// Creating pool with parameters: initalSize = 2, capacity = 2.
-	pSlice, err := pool.NewPool[[]int](2, 2, conf2, func() []int {
+	pSlice, err := pool.NewPool(2, 2, conf2, func() []int {
 		return make([]int, 0, 1)
 	})
 	if err != nil {
