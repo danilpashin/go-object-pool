@@ -207,6 +207,7 @@ func TestPool(t *testing.T) {
 			WithMinIdle[*TestHeavyObject](2),
 			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
 			WithDeleteSize[*TestHeavyObject](2),
+			WithMaxLifetime[*TestHeavyObject](time.Millisecond*100),
 		)
 		factory := func() *TestHeavyObject {
 			return &TestHeavyObject{
@@ -264,6 +265,7 @@ func TestPool(t *testing.T) {
 			WithMinIdle[*TestHeavyObject](2),
 			WithDeleteSize[*TestHeavyObject](4),
 			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
+			WithMaxLifetime[*TestHeavyObject](time.Millisecond*100),
 		)
 		factory := func() *TestHeavyObject {
 			return &TestHeavyObject{
@@ -321,6 +323,7 @@ func TestPool(t *testing.T) {
 			WithMinIdle[*TestHeavyObject](5000),
 			WithDeleteSize[*TestHeavyObject](1000),
 			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
+			WithMaxLifetime[*TestHeavyObject](time.Millisecond*100),
 		)
 		factory := func() *TestHeavyObject {
 			return &TestHeavyObject{
@@ -379,6 +382,7 @@ func TestPool(t *testing.T) {
 			WithMinIdle[*TestHeavyObject](5000),
 			WithDeleteSize[*TestHeavyObject](5000),
 			WithScanInterval[*TestHeavyObject](time.Millisecond*100),
+			WithMaxLifetime[*TestHeavyObject](time.Millisecond*100),
 		)
 		factory := func() *TestHeavyObject {
 			return &TestHeavyObject{
