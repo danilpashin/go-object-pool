@@ -10,10 +10,14 @@ type Stats struct {
 }
 
 func (c *poolCore[T]) Stats() *Stats {
+	idleCount := 0
+	for _, shard := range c.shards {
+		idleCount += len(shard)
+	}
 	return &Stats{
 		Capacity: atomic.LoadInt64(&c.capacity),
 		Created:  atomic.LoadInt64(&c.created),
 		Missed:   atomic.LoadInt64(&c.missed),
-		Active:   atomic.LoadInt64(&c.created) - int64(len(c.objects)),
+		Active:   atomic.LoadInt64(&c.created) - int64(idleCount),
 	}
 }

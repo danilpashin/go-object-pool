@@ -43,8 +43,8 @@ func NewConfig[T any](opts ...Option[T]) *PoolConfig[T] {
 		MinIdle:      1,
 		MaxWait:      time.Second * 3,
 		ScanInterval: time.Second,
-		MaxLifetime:  time.Second,
-		DeleteSize:   5,
+		MaxLifetime:  time.Millisecond * 100,
+		DeleteSize:   1,
 		stop:         make(chan struct{}),
 	}
 

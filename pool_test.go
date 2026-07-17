@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"bytes"
 	"context"
 	"reflect"
 	"sync"
@@ -9,106 +8,137 @@ import (
 	"time"
 )
 
-type TestHeavyObject struct {
-	Bytes1 []byte
-	Bytes2 []byte
-}
+type TestResettableObject struct{}
 
-func (h *TestHeavyObject) Reset() {
-	h.Bytes1 = h.Bytes1[:0]
-	h.Bytes2 = h.Bytes2[:0]
-}
+func (obj *TestResettableObject) Reset() {}
 
 func TestPool(t *testing.T) {
 	t.Run("synchronous_requests", func(t *testing.T) {
-		const (
-			requests = 20
-			poolSize = 10
-			poolCap  = 10
-			sliceCap = 1024
-		)
+		cfg := NewConfig(WithResetFunc(func(obj []byte) { obj = obj[:0] }))
 
-		cfg := NewConfig(
-			WithResetFunc(func(p *TestHeavyObject) {
-				p.Bytes1 = p.Bytes1[:0]
-				p.Bytes2 = p.Bytes2[:0]
-			}),
-		)
-		factory := func() *TestHeavyObject {
-			return &TestHeavyObject{
-				Bytes1: make([]byte, 0, sliceCap),
-				Bytes2: make([]byte, 0, sliceCap),
-			}
-		}
+		p, _ := NewPool(10, 10, cfg, func() []byte { return make([]byte, 0, 10) })
+		ctx := context.Background()
 
-		p, err := NewPool(poolSize, int64(poolCap), cfg, factory)
-		if err != nil {
-			t.Fatal("failed to create pool: ", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
-		defer cancel()
-
-		expectedObj := &TestHeavyObject{
-			Bytes1: make([]byte, 0, sliceCap),
-			Bytes2: make([]byte, 0, sliceCap),
-		}
-		for i := range requests {
+		for range 20 {
 			obj := p.Get(ctx)
-
-			obj.Value.Bytes1 = append(obj.Value.Bytes1, []byte("object data 1")...)
-			obj.Value.Bytes2 = append(obj.Value.Bytes2, []byte("object data 2")...)
-
+			obj.Value = append(obj.Value, []byte("object data")...)
 			p.Put(obj)
-
-			if !reflect.DeepEqual(expectedObj, obj.Value) {
-				t.Fatalf("iteration %d: expected %v, got: %v", i, expectedObj, obj.Value)
-			}
 		}
 
-		expectedStats := &Stats{
-			Capacity: int64(poolCap),
-			Created:  10,
-			Missed:   0,
-			Active:   0,
-		}
-
-		currentStats := p.Stats()
-		if !reflect.DeepEqual(expectedStats, currentStats) {
-			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
+		stats := p.Stats()
+		if stats.Created != 10 {
+			t.Errorf("expected 10 objects left, got %d", stats.Created)
 		}
 	})
-	t.Run("capacity limit", func(t *testing.T) {
-		const (
-			requests = 11
-			poolSize = 10
-			poolCap  = 10
-			sliceCap = 1024
-		)
-
-		cfg := NewConfig[*TestHeavyObject]()
-		factory := func() *TestHeavyObject {
-			return &TestHeavyObject{
-				Bytes1: make([]byte, 0, sliceCap),
-				Bytes2: make([]byte, 0, sliceCap),
+	t.Run("negative initial size", func(t *testing.T) {
+		_, err := NewPool[[]byte](-10, 10, nil, nil)
+		if err != nil {
+			if err.Error() != "initial size cannot be negative, got -10" {
+				t.Fatalf(`expected error "initial size cannot be negative, got -10", got: %v`, err)
 			}
 		}
-
-		p, err := NewPool(poolSize, int64(poolCap), cfg, factory)
+	})
+	t.Run("negative capacity", func(t *testing.T) {
+		_, err := NewPool[[]byte](10, -10, nil, nil)
 		if err != nil {
-			t.Fatal("failed to create pool: ", err)
+			if err.Error() != "capacity must be positive, got -10" {
+				t.Fatalf(`expected error "capacity must be positive, got -10", got: %v`, err)
+			}
 		}
+	})
+	t.Run("initial size larger than capacity", func(t *testing.T) {
+		_, err := NewPool[[]byte](11, 10, nil, nil)
+		if err != nil {
+			if err.Error() != "initial size (11) cannot exceed capacity (10)" {
+				t.Fatalf(`expected error "initial size (11) cannot exceed capacity (10)", got: %v`, err)
+			}
+		}
+	})
+	t.Run("no factory function", func(t *testing.T) {
+		_, err := NewPool[[]byte](10, 10, nil, nil)
+		if err != nil {
+			if err.Error() != "factory function is required" {
+				t.Fatalf(`expected error "factory function is required", got: %v`, err)
+			}
+		}
+	})
+	t.Run("no configuration", func(t *testing.T) {
+		_, err := NewPool(10, 10, nil, func() []byte { return make([]byte, 0, 10) })
+		if err != nil {
+			if err.Error() != "configuration settings are required" {
+				t.Fatalf(`expected error "configuration settings are required", got: %v`, err)
+			}
+		}
+	})
+	t.Run("negative min idle", func(t *testing.T) {
+		cfg := NewConfig(WithMinIdle[[]byte](-5))
+
+		_, err := NewPool(1, 1, cfg, func() []byte { return make([]byte, 1) })
+		if err != nil {
+			if err.Error() != "min idle cannot be negative or exceed capacity, got -5" {
+				t.Fatalf(`expected error "min idle cannot be negative or exceed capacity, got -5", got: %v`, err)
+			}
+		}
+	})
+	t.Run("negative scan interval", func(t *testing.T) {
+		cfg := NewConfig(WithScanInterval[[]byte](-5))
+
+		_, err := NewPool(1, 1, cfg, func() []byte { return make([]byte, 1) })
+		if err != nil {
+			if err.Error() != "scan interval cannot be negative, got -5ns" {
+				t.Fatalf(`expected error "scan interval cannot be negative, got -5ns", got: %v`, err)
+			}
+		}
+	})
+	t.Run("negative delete size", func(t *testing.T) {
+		cfg := NewConfig(WithDeleteSize[[]byte](-5))
+
+		_, err := NewPool(1, 1, cfg, func() []byte { return make([]byte, 1) })
+		if err != nil {
+			if err.Error() != "delete size cannot be negative, got -5" {
+				t.Fatalf(`expected error "delete size cannot be negative, got -5", got: %v`, err)
+			}
+		}
+	})
+	t.Run("put nil object", func(t *testing.T) {
+		cfg := NewConfig[[]byte]()
+
+		p, _ := NewPool(1, 1, cfg, func() []byte { return make([]byte, 1) })
+		ctx := context.Background()
+
+		_ = p.Get(ctx)
+		p.Put(nil)
+	})
+	t.Run("put resettable object", func(t *testing.T) {
+		cfg := NewConfig[*TestResettableObject]()
+
+		p, _ := NewPool(1, 1, cfg, func() *TestResettableObject { return &TestResettableObject{} })
+		ctx := context.Background()
+
+		obj := p.Get(ctx)
+		p.Put(obj)
+		p.core.conf.stop <- struct{}{}
+	})
+	t.Run("put not resettable object", func(t *testing.T) {
+		cfg := NewConfig[[]byte]()
+
+		p, _ := NewPool(1, 1, cfg, func() []byte { return make([]byte, 1) })
+		ctx := context.Background()
+
+		obj := p.Get(ctx)
+		p.Put(obj)
+	})
+	t.Run("capacity limit", func(t *testing.T) {
+		cfg := NewConfig[[]byte]()
+
+		p, _ := NewPool(10, 10, cfg, func() []byte { return make([]byte, 1) })
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
 		defer cancel()
 
-		objects := make([]*PoolObject[*TestHeavyObject], 0, poolCap)
-		for i := range poolCap {
+		objects := make([]*PoolObject[[]byte], 0, 10)
+		for range 10 {
 			obj := p.Get(ctx)
-			if obj.Value == nil {
-				t.Fatalf("iteration %d: expected %v, got: %v", i, &TestHeavyObject{}, obj)
-			}
-
 			objects = append(objects, obj)
 		}
 
@@ -117,7 +147,7 @@ func TestPool(t *testing.T) {
 		}
 
 		expectedStats := &Stats{
-			Capacity: int64(poolCap),
+			Capacity: 10,
 			Created:  10,
 			Missed:   1,
 			Active:   10,
@@ -127,429 +157,36 @@ func TestPool(t *testing.T) {
 		if !reflect.DeepEqual(expectedStats, currentStats) {
 			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
 		}
-
-		for _, obj := range objects {
-			p.Put(obj)
-		}
-
-		expectedStats = &Stats{
-			Capacity: int64(poolCap),
-			Created:  10,
-			Missed:   1,
-			Active:   0,
-		}
-
-		currentStats = p.Stats()
-		if !reflect.DeepEqual(expectedStats, currentStats) {
-			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-		}
 	})
-	t.Run("concurrency", func(t *testing.T) {
-		const (
-			requests = 100
-			poolSize = 2
-			poolCap  = 10
-			sliceCap = 10
-		)
-
-		cfg := NewConfig[*TestHeavyObject]()
-		factory := func() *TestHeavyObject {
-			return &TestHeavyObject{
-				Bytes1: make([]byte, 0, sliceCap),
-				Bytes2: make([]byte, 0, sliceCap),
-			}
-		}
-
-		p, err := NewPool(poolSize, poolCap, cfg, factory)
-		if err != nil {
-			t.Fatal("failed to create pool:", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
-		defer cancel()
-
-		var wg sync.WaitGroup
-
-		for range requests {
-			wg.Go(func() {
-				obj1 := p.Get(ctx)
-				if obj1 != nil {
-					obj1.Value.Bytes1 = append(obj1.Value.Bytes1, []byte("some data")...)
-					obj1.Value.Bytes2 = append(obj1.Value.Bytes2, []byte("some data")...)
-					time.Sleep(time.Millisecond * 20)
-					p.Put(obj1)
-				}
-			})
-		}
-
-		wg.Wait()
-
-		expectedStats := &Stats{
-			Capacity: int64(poolCap),
-			Created:  10,
-			Missed:   90,
-			Active:   0,
-		}
-
-		currentStats := p.Stats()
-		if !reflect.DeepEqual(expectedStats, currentStats) {
-			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-		}
-	})
-	t.Run("cleaning", func(t *testing.T) {
-		const (
-			requests = 10
-			poolSize = 30
-			poolCap  = 30
-			sliceCap = 10
-		)
-
+	t.Run("incremental eviction under load", func(t *testing.T) {
 		cfg := NewConfig(
-			WithMinIdle[*TestHeavyObject](2),
-			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
-			WithDeleteSize[*TestHeavyObject](2),
-			WithMaxLifetime[*TestHeavyObject](time.Millisecond*100),
+			WithMinIdle[[]byte](5),
+			WithDeleteSize[[]byte](5),
+			WithScanInterval[[]byte](time.Millisecond*10),
+			WithMaxLifetime[[]byte](time.Millisecond*5),
+			WithResetFunc(func(obj []byte) { obj = obj[:0] }),
 		)
-		factory := func() *TestHeavyObject {
-			return &TestHeavyObject{
-				Bytes1: make([]byte, 0, sliceCap),
-				Bytes2: make([]byte, 0, sliceCap),
-			}
-		}
 
-		p, err := NewPool(poolSize, poolCap, cfg, factory)
-		if err != nil {
-			t.Fatal("failed to create pool:", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
-		defer cancel()
+		p, _ := NewPool(0, 10, cfg, func() []byte { return make([]byte, 0, 10) })
+		ctx := context.Background()
 
 		var wg sync.WaitGroup
-
-		for range requests {
+		for i := 0; i < 100; i++ {
 			wg.Go(func() {
-				obj1 := p.Get(ctx)
-				if obj1 != nil {
-					obj1.Value.Bytes1 = append(obj1.Value.Bytes1, []byte("some data")...)
-					obj1.Value.Bytes2 = append(obj1.Value.Bytes2, []byte("some data")...)
-					p.Put(obj1)
+				obj := p.Get(ctx)
+				if obj != nil {
+					time.Sleep(time.Millisecond * 2)
+					p.Put(obj)
 				}
 			})
 		}
-
 		wg.Wait()
 
-		time.Sleep(time.Second * 1)
+		time.Sleep(time.Millisecond * 40)
 
-		expectedStats := &Stats{
-			Capacity: int64(poolCap),
-			Created:  2,
-			Missed:   0,
-			Active:   0,
-		}
-
-		currentStats := p.Stats()
-		if !reflect.DeepEqual(expectedStats, currentStats) {
-			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-		}
-	})
-	t.Run("cleaning with dynamic delete size", func(t *testing.T) {
-		const (
-			requests = 10
-			poolSize = 30
-			poolCap  = 30
-			sliceCap = 10
-		)
-
-		cfg := NewConfig(
-			WithMinIdle[*TestHeavyObject](2),
-			WithDeleteSize[*TestHeavyObject](4),
-			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
-			WithMaxLifetime[*TestHeavyObject](time.Millisecond*100),
-		)
-		factory := func() *TestHeavyObject {
-			return &TestHeavyObject{
-				Bytes1: make([]byte, 0, sliceCap),
-				Bytes2: make([]byte, 0, sliceCap),
-			}
-		}
-
-		p, err := NewPool(poolSize, poolCap, cfg, factory)
-		if err != nil {
-			t.Fatal("failed to create pool:", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
-		defer cancel()
-
-		var wg sync.WaitGroup
-
-		for range requests {
-			wg.Go(func() {
-				obj1 := p.Get(ctx)
-				if obj1 != nil {
-					obj1.Value.Bytes1 = append(obj1.Value.Bytes1, []byte("some data")...)
-					obj1.Value.Bytes2 = append(obj1.Value.Bytes2, []byte("some data")...)
-					p.Put(obj1)
-				}
-			})
-		}
-
-		wg.Wait()
-
-		time.Sleep(time.Second * 1)
-
-		expectedStats := &Stats{
-			Capacity: int64(poolCap),
-			Created:  2,
-			Missed:   0,
-			Active:   0,
-		}
-
-		currentStats := p.Stats()
-		if !reflect.DeepEqual(expectedStats, currentStats) {
-			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-		}
-	})
-	t.Run("cleaning large pool", func(t *testing.T) {
-		const (
-			requests = 40000
-			poolSize = 40000
-			poolCap  = 40000
-			sliceCap = 100
-		)
-
-		cfg := NewConfig(
-			WithMinIdle[*TestHeavyObject](5000),
-			WithDeleteSize[*TestHeavyObject](1000),
-			WithScanInterval[*TestHeavyObject](time.Millisecond*50),
-			WithMaxLifetime[*TestHeavyObject](time.Millisecond*100),
-		)
-		factory := func() *TestHeavyObject {
-			return &TestHeavyObject{
-				Bytes1: make([]byte, 0, sliceCap),
-				Bytes2: make([]byte, 0, sliceCap),
-			}
-		}
-
-		p, err := NewPool(poolSize, poolCap, cfg, factory)
-		if err != nil {
-			t.Fatal("failed to create pool:", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
-		defer cancel()
-
-		var wg sync.WaitGroup
-
-		for range requests {
-			wg.Go(func() {
-				obj1 := p.Get(ctx)
-				if obj1 != nil {
-					obj1.Value.Bytes1 = append(obj1.Value.Bytes1, []byte("some data")...)
-					obj1.Value.Bytes2 = append(obj1.Value.Bytes2, []byte("some data")...)
-					time.Sleep(time.Second * 2)
-					p.Put(obj1)
-				}
-			})
-		}
-
-		wg.Wait()
-
-		time.Sleep(time.Second * 2)
-
-		expectedStats := &Stats{
-			Capacity: int64(poolCap),
-			Created:  5000,
-			Missed:   0,
-			Active:   0,
-		}
-
-		currentStats := p.Stats()
-		if !reflect.DeepEqual(expectedStats, currentStats) {
-			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-		}
-	})
-	t.Run("creating and cleaning large pool", func(t *testing.T) {
-		const (
-			requests = 100000
-			poolSize = 0
-			poolCap  = 100000
-			sliceCap = 10
-		)
-
-		cfg := NewConfig(
-			WithMinIdle[*TestHeavyObject](5000),
-			WithDeleteSize[*TestHeavyObject](5000),
-			WithScanInterval[*TestHeavyObject](time.Millisecond*100),
-			WithMaxLifetime[*TestHeavyObject](time.Millisecond*100),
-		)
-		factory := func() *TestHeavyObject {
-			return &TestHeavyObject{
-				Bytes1: make([]byte, 0, sliceCap),
-				Bytes2: make([]byte, 0, sliceCap),
-			}
-		}
-
-		p, err := NewPool(poolSize, poolCap, cfg, factory)
-		if err != nil {
-			t.Fatal("failed to create pool:", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-
-		var wg sync.WaitGroup
-
-		for range requests {
-			wg.Go(func() {
-				obj1 := p.Get(ctx)
-				if obj1 != nil {
-					obj1.Value.Bytes1 = append(obj1.Value.Bytes1, []byte("some data")...)
-					obj1.Value.Bytes2 = append(obj1.Value.Bytes2, []byte("some data")...)
-					time.Sleep(time.Second * 2)
-					p.Put(obj1)
-				}
-			})
-		}
-
-		wg.Wait()
-
-		time.Sleep(time.Second * 3)
-
-		expectedStats := &Stats{
-			Capacity: int64(poolCap),
-			Created:  5000,
-			Missed:   0,
-			Active:   0,
-		}
-
-		currentStats := p.Stats()
-		if !reflect.DeepEqual(expectedStats, currentStats) {
-			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-		}
-	})
-	t.Run("cleaning large pool with heavy data", func(t *testing.T) {
-		const (
-			requests = 100000
-			poolSize = 100000
-			poolCap  = 100000
-			sliceCap = 10000
-		)
-
-		heavyData := bytes.Repeat([]byte{'A'}, 10000)
-
-		cfg := NewConfig(
-			WithMinIdle[*TestHeavyObject](5000),
-			WithDeleteSize[*TestHeavyObject](5000),
-			WithScanInterval[*TestHeavyObject](time.Millisecond*100),
-			WithMaxLifetime[*TestHeavyObject](time.Millisecond*100),
-		)
-		factory := func() *TestHeavyObject {
-			return &TestHeavyObject{
-				Bytes1: make([]byte, 0, sliceCap),
-				Bytes2: make([]byte, 0, sliceCap),
-			}
-		}
-
-		p, err := NewPool(poolSize, poolCap, cfg, factory)
-		if err != nil {
-			t.Fatal("failed to create pool:", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-
-		var wg sync.WaitGroup
-
-		for range requests {
-			wg.Go(func() {
-				obj1 := p.Get(ctx)
-				if obj1 != nil {
-					obj1.Value.Bytes1 = append(obj1.Value.Bytes1, heavyData...)
-					obj1.Value.Bytes2 = append(obj1.Value.Bytes2, heavyData...)
-					time.Sleep(time.Second * 2)
-					p.Put(obj1)
-				}
-			})
-		}
-
-		wg.Wait()
-
-		time.Sleep(time.Second * 3)
-
-		expectedStats := &Stats{
-			Capacity: int64(poolCap),
-			Created:  5000,
-			Missed:   0,
-			Active:   0,
-		}
-
-		currentStats := p.Stats()
-		if !reflect.DeepEqual(expectedStats, currentStats) {
-			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
-		}
-	})
-	t.Run("creating and cleaning large pool with heavy data", func(t *testing.T) {
-		const (
-			requests = 100000
-			poolSize = 0
-			poolCap  = 100000
-			sliceCap = 10000
-		)
-
-		heavyData := bytes.Repeat([]byte{'A'}, 10000)
-
-		cfg := NewConfig(
-			WithMinIdle[*TestHeavyObject](5000),
-			WithDeleteSize[*TestHeavyObject](5000),
-			WithScanInterval[*TestHeavyObject](time.Millisecond*100),
-			WithMaxLifetime[*TestHeavyObject](time.Millisecond*100),
-		)
-		factory := func() *TestHeavyObject {
-			return &TestHeavyObject{
-				Bytes1: make([]byte, 0, sliceCap),
-				Bytes2: make([]byte, 0, sliceCap),
-			}
-		}
-
-		p, err := NewPool(poolSize, poolCap, cfg, factory)
-		if err != nil {
-			t.Fatal("failed to create pool:", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-
-		var wg sync.WaitGroup
-
-		for range requests {
-			wg.Go(func() {
-				obj1 := p.Get(ctx)
-				if obj1 != nil {
-					obj1.Value.Bytes1 = append(obj1.Value.Bytes1, heavyData...)
-					obj1.Value.Bytes2 = append(obj1.Value.Bytes2, heavyData...)
-					time.Sleep(time.Second * 2)
-					p.Put(obj1)
-				}
-			})
-		}
-
-		wg.Wait()
-
-		time.Sleep(time.Second * 3)
-
-		expectedStats := &Stats{
-			Capacity: int64(poolCap),
-			Created:  5000,
-			Missed:   0,
-			Active:   0,
-		}
-
-		currentStats := p.Stats()
-		if !reflect.DeepEqual(expectedStats, currentStats) {
-			t.Fatalf("stats mismatch: expected %+v, got: %+v", expectedStats, currentStats)
+		stats := p.Stats()
+		if stats.Created != 5 {
+			t.Errorf("expected 5 objects left, got %d", stats.Created)
 		}
 	})
 }

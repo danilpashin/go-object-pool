@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"log"
 	"sync/atomic"
 	"time"
 )
@@ -17,25 +16,55 @@ func (c *poolCore[T]) cleaner() {
 	for {
 		select {
 		case <-ticker.C:
-			created := atomic.LoadInt64(&c.created)
-			if created > minIdle {
-				for range min(created-minIdle, int64(deleteSize)) {
-					select {
-					case obj := <-c.objects:
-						if obj != nil {
-							if time.Since(obj.lastUsed) > maxLifetime {
-								atomic.AddInt64(&c.created, -1)
-								obj = nil
-							} else {
-								c.objects <- obj
-							}
-						}
-					default:
-					}
+			now := time.Now()
+
+			shardsLen := 0
+			for _, shard := range c.shards {
+				shardsLen += len(shard)
+			}
+
+			if shardsLen < int(minIdle) {
+				continue
+			}
+
+			toDelete := min(shardsLen-int(minIdle), deleteSize)
+			missedShards := 0
+			visitedCompletely := make([]bool, c.numShards)
+
+			for i := 0; toDelete > 0; {
+				shardIdx := i % c.numShards
+
+				if visitedCompletely[shardIdx] {
+					i++
+					continue
 				}
+
+				if i > c.numShards {
+					i = 0
+					if missedShards == c.numShards {
+						break
+					}
+					missedShards = 0
+				}
+
+				select {
+				case obj := <-c.shards[shardIdx]:
+					if now.Sub(obj.lastUsed) > maxLifetime {
+						obj = nil
+						atomic.AddInt64(&c.created, -1)
+						toDelete--
+					} else {
+						c.shards[shardIdx] <- obj
+						missedShards++
+						visitedCompletely[shardIdx] = true
+					}
+				default:
+					missedShards++
+				}
+
+				i++
 			}
 		case <-c.conf.stop:
-			log.Println("Cleaner finished")
 			return
 		}
 	}
