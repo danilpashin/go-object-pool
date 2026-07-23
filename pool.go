@@ -24,11 +24,11 @@ type poolCore[T any] struct {
 	factory   func() T
 	conf      *PoolConfig[T]
 	capacity  int64
-	_         [64]byte
+	_         [16]byte
 	created   int64
-	_         [64]byte
+	_         [56]byte
 	missed    int64
-	_         [64]byte
+	_         [56]byte
 	numShards int
 	shardMask uint32
 }
@@ -76,11 +76,9 @@ func NewPool[T any](initialSize int, capacity int64, conf *PoolConfig[T], factor
 		conf:     conf,
 	}
 
-	numShards := 16
-	if int(capacity) < numShards {
-		for numShards > int(capacity) {
-			numShards = numShards >> 1
-		}
+	numShards := 256
+	for int(capacity)/numShards < 8 && numShards > 1 {
+		numShards = numShards >> 1
 	}
 
 	shards := make([]chan *PoolObject[T], numShards)

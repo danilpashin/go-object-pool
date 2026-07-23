@@ -107,7 +107,7 @@ func main() {
 		}),
 	)
 
-	// Creating pool with parameters: initalSize = 2, capacity = 2.
+	// Creating pool with parameters: initialSize = 2, capacity = 2.
 	pSlice, err := pool.NewPool(2, 2, conf2, func() []int {
 		return make([]int, 0, 1)
 	})
