@@ -1,5 +1,8 @@
 # 📦 Thread-safe Generic Object Pool in Golang
-## 📖 Overview 
+![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)
+[![Coverage](https://img.shields.io/badge/Coverage-100.0%25-brightgreen)](https://github.com/danilpashin/go-object-pool/.github/workflows/go.yml)
+
+## 📖 Overview
 
 A high-performance, memory-efficient thread-safe generic object pool for Go that provides deterministic control over object lifecycle and memory usage. Built with production workloads in mind, this pool implements advanced concurrency patterns including sharding, atomic operations, and background cleanup to deliver predictable performance at scale.
 
