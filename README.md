@@ -1,6 +1,6 @@
 # 📦 Thread-safe Generic Object Pool in Golang
 ![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)
-[![Coverage](https://img.shields.io/badge/Coverage-100.0%25-brightgreen)](https://github.com/danilpashin/go-object-pool/.github/workflows/go.yml)
+![Coverage](https://img.shields.io/badge/Coverage-85.8%25-brightgreen)
 
 ## 📖 Overview
 
